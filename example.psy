@@ -2,6 +2,7 @@ number := 42
 PI : f32 : 3.14
 
 string := "Hello"
+letter_a : char : 'A'
 
 arr := [1, 2, 3]
 arr2d : [2, 3]i32 = [ 1, 2, 3,
