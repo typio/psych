@@ -1,8 +1,12 @@
-number := 42
-PI : f32 : 3.14
+// Variables
+number := 21
+number = 73
+
+// Constants
+PI :: 3.14
 
 string := "Hello"
-letter_a : char : 'A'
+LETTER_A : char : 'A'
 
 arr := [1, 2, 3]
 arr2d : [2, 3]i32 = [ 1, 2, 3,
@@ -28,13 +32,14 @@ sum :: (arr: []T) -> T {
   return reduce(arr, add, 0)
 }
 
-map_inplace :: (arr: []T, f: T -> T) -> {
+map_inplace :: (arr: []T, f: (T) -> T) -> empty {
   for &e in arr {
     e.* = f(e.*)
   }
 }
 
-map :: (arr: [N]T, f: T -> T) -> [N]T {
+map :: (arr: [N]T, f: (T) -> T) -> [N]T {
+  // Uninitialized variable
   result : [N]
   for e, i in arr {
     result.i = f(e.*)
@@ -42,7 +47,7 @@ map :: (arr: [N]T, f: T -> T) -> [N]T {
   return result
 }
 
-magnify :: (arr: []T, multiplier: T2) -> []T3 {
+magnify :: (arr: []T_Elements, multiplier: T_Multiplier) -> []T_Result {
   // Implicit comptime type if unspecified in function param, perhaps
-  return arr |> map(m -> m * multiplier)
+  return arr |> map((m) -> m * multiplier)
 }

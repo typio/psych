@@ -2,6 +2,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <unicode/ustring.h>
 
 #define FILE_OK 1
 #define FILE_DOESNT_EXIST -1
@@ -12,12 +13,14 @@
 
 // clang-format off
 typedef enum {
-  TOK_IDENTIFIER = 1, 
+  TOK_ID = 1, 
   TOK_INT_DEC, TOK_INT_OCT, TOK_INT_HEX, TOK_INT_BIN, TOK_FLOAT, TOK_STRING, TOK_CHAR,
   TOK_ASSIGN, TOK_ASSIGN_CONST, TOK_ARROW,
-  TOK_COLON, TOK_SEMICOLON, TOK_COMMA,
+  TOK_COLON, TOK_EQUALS, TOK_SEMICOLON, TOK_COMMA, TOK_DOT,
   TOK_L_PAREN, TOK_R_PAREN, TOK_L_BRACE, TOK_R_BRACE, TOK_L_BRACKET, TOK_R_BRACKET, TOK_DOUBLE_QUOTE, TOK_SINGLE_QUOTE,
-  TOK_PLUS, TOK_MINUS, TOK_STAR, TOK_SLASH, TOK_PERCENT, TOK_AT,
+  TOK_L_PIPE, TOK_R_PIPE, TOK_RANGE_INCL, TOK_RANGE_EXCL,
+  TOK_PLUS, TOK_MINUS, TOK_STAR, TOK_SLASH, TOK_PERCENT, TOK_AT, TOK_AMPERSAND, TOK_BAR,
+  TOK_LT, TOK_LTE, TOK_GT, TOK_GTE, TOK_COMPARE,
   TOK_TYPE,
   TOK_EOF
 } TokenType ;
@@ -72,77 +75,181 @@ char* read_file(const char* file_name, size_t* err, size_t* file_size) {
   return buffer;
 }
 
+int is_valid_nth_id_char(char c) {
+  if (isalnum(c) || c == '_')
+    return 1;
+  else
+    return 0;
+}
+
+int advance_lexer(char** src) {
+  if (**src != '\0') {
+    (*src)++;
+    return 1;
+  }
+  return 0;
+}
+
 Token next_token(char** src, size_t* cursor, size_t* bol, size_t* line,
                  char (*lexeme_buf)[MAX_LEXEME_LENGTH]) {
   Token token = {.type = 0};
+  int lexeme_length = 0;
 
-  while (isspace(**src)) {
-    if (**src == '\n') (*line)++;
-    (*src)++;
+  while (isspace(**src) || **src == '/') {
+    while (isspace(**src)) {  // Whitespace
+      if (**src == '\n') (*line)++;
+      if (!advance_lexer(src)) return (Token){.type = TOK_EOF};
+    }
+
+    if (**src == '/') {  // Comments
+      if (*(*src + 1) == '/') {
+        while (**src != '\n')
+          if (!advance_lexer(src)) return (Token){.type = TOK_EOF};
+        if (!advance_lexer(src)) return (Token){.type = TOK_EOF};
+        (*line)++;
+      }
+    }
   }
 
-  if (isalpha(**src)) {
-    int lexeme_length = 0;
-
+  if (isalpha(**src)) {  // Identifiers
     do {
       (*lexeme_buf)[lexeme_length++] = **src;
-    } while (isalnum(*(*src)++));
+      if (!advance_lexer(src)) break;
+    } while (is_valid_nth_id_char(**src));
 
     (*lexeme_buf)[lexeme_length] = '\0';
-    lexeme_length++;
+    token.type = TOK_ID;
+    token.literal = malloc(lexeme_length + 1);
+    strncpy(token.literal, *lexeme_buf, lexeme_length + 1);
 
-    token.type = TOK_IDENTIFIER;
-    token.literal = malloc(lexeme_length);
-    strncpy(token.literal, *lexeme_buf, lexeme_length);
-  } else if (isnumber(**src)) {
-    int lexeme_length = 0;
-
+  } else if (isnumber(**src)) {  // base10 number literal
     do {
       (*lexeme_buf)[lexeme_length++] = **src;
-    } while (isnumber(*(*src)++));
+      if (!advance_lexer(src)) break;
+    } while (isnumber(**src));
 
-    (*lexeme_buf)[lexeme_length] = '\0';
-    lexeme_length++;
-
-    token.type = TOK_INT_DEC;
-    token.literal = malloc(lexeme_length);
-    strncpy(token.literal, *lexeme_buf, lexeme_length);
-  } else if (**src == '"') {
-    (*src)++;
-    int lexeme_length = 0;
-
-    while (**src != '"' && **src != '\0') {
-      (*lexeme_buf)[lexeme_length++] = **src;
-      (*src)++;
-    }
-
-    if (**src == '"') {
-      (*src)++;
-    }
-
-    (*lexeme_buf)[lexeme_length] = '\0';
-    lexeme_length++;
-
-    token.type = TOK_STRING;
-    token.literal = malloc(lexeme_length);
-    strncpy(token.literal, *lexeme_buf, lexeme_length);
-  } else if (**src == '\'') {
-  } else if (**src == ':') {
-    (*src)++;
-    if (**src == '=') {
-      token.type = TOK_ASSIGN;
-    } else if (**src == ':') {
-      token.type = TOK_ASSIGN_CONST;
+    if (**src == '.') {  // Float literal
+      do {
+        (*lexeme_buf)[lexeme_length++] = **src;
+        if (!advance_lexer(src)) break;
+      } while (isnumber(**src));
+      token.type = TOK_FLOAT;
     } else {
-      token.type = TOK_COLON;
-      (*src)--;
+      token.type = TOK_INT_DEC;
     }
-    (*src)++;
-  } else if (**src == ';') {
-    token.type = TOK_SEMICOLON;
-    (*src)++;
-  } else if (**src == '\0') {
+    (*lexeme_buf)[lexeme_length] = '\0';
+    token.literal = malloc(lexeme_length + 1);
+    strncpy(token.literal, *lexeme_buf, lexeme_length + 1);
+
+  } else if (**src == '"') {  // String literals
+    if (!advance_lexer(src)) return (Token){.type = TOK_EOF};
+
+    while (**src != '"') {
+      (*lexeme_buf)[lexeme_length++] = **src;
+      if (!advance_lexer(src)) break;
+    }
+    if (!advance_lexer(src)) return (Token){.type = TOK_EOF};
+
+    (*lexeme_buf)[lexeme_length] = '\0';
+    token.type = TOK_STRING;
+    token.literal = malloc(lexeme_length + 1);
+    strncpy(token.literal, *lexeme_buf, lexeme_length + 1);
+
+  } else if (**src == '\'') {
+    // UTF-8
+    // 1 byte: 0xxxxxxx (ASCII characters)
+    // 2 bytes: 110xxxxx 10xxxxxx
+    // 3 bytes: 1110xxxx 10xxxxxx 10xxxxxx
+    // 4 bytes: 11110xxx 10xxxxxx 10xxxxxx 10xxxxxx
+
+    if (!advance_lexer(src)) return (Token){.type = TOK_EOF};
+    (*lexeme_buf)[0] = **src;
+    if (!advance_lexer(src)) return (Token){.type = TOK_EOF};
+    (*lexeme_buf)[1] = '\0';
+
+    token.type = TOK_CHAR;
+    token.literal = malloc(2);
+    strncpy(token.literal, *lexeme_buf, 2);
+
+  } else if (**src == '\0')
     token.type = TOK_EOF;
+  else {
+    if (**src == ':') {
+      advance_lexer(src);
+      if (**src == '=') {
+        token.type = TOK_ASSIGN;
+      } else if (**src == ':') {
+        token.type = TOK_ASSIGN_CONST;
+      } else {
+        token.type = TOK_COLON;
+        (*src)--;
+      }
+    } else if (**src == '=')
+      token.type = TOK_EQUALS;
+    else if (**src == ';')
+      token.type = TOK_SEMICOLON;
+    else if (**src == ',')
+      token.type = TOK_COMMA;
+    else if (**src == '.')
+      token.type = TOK_DOT;
+    else if (**src == '(')
+      token.type = TOK_L_PAREN;
+    else if (**src == ')')
+      token.type = TOK_R_PAREN;
+    else if (**src == '[')
+      token.type = TOK_L_BRACKET;
+    else if (**src == ']')
+      token.type = TOK_R_BRACKET;
+    else if (**src == '{')
+      token.type = TOK_L_BRACE;
+    else if (**src == '}')
+      token.type = TOK_R_BRACE;
+    else if (**src == '|') {
+      advance_lexer(src);
+      if (**src == '>') {
+        token.type = TOK_R_PIPE;
+      } else {
+        token.type = TOK_BAR;
+        (*src)--;
+      }
+    } else if (**src == '+')
+      token.type = TOK_PLUS;
+    else if (**src == '-') {
+      advance_lexer(src);
+      if (**src == '>') {
+        token.type = TOK_ARROW;
+      } else {
+        token.type = TOK_MINUS;
+        (*src)--;
+      }
+    } else if (**src == '*')
+      token.type = TOK_STAR;
+    else if (**src == '%')
+      token.type = TOK_PERCENT;
+    else if (**src == '@')
+      token.type = TOK_AT;
+    else if (**src == '&')
+      token.type = TOK_AMPERSAND;
+    else if (**src == '<') {
+      advance_lexer(src);
+      if (**src == '|')
+        token.type = TOK_L_PIPE;
+      else if (**src == '=') {
+        token.type = TOK_LTE;
+      } else {
+        token.type = TOK_LT;
+        (*src)--;
+      }
+    } else if (**src == '>') {
+      advance_lexer(src);
+      if (**src == '=') {
+        token.type = TOK_GTE;
+      } else {
+        token.type = TOK_GT;
+        (*src)--;
+      }
+    }
+    advance_lexer(src);
   }
 
   return token;
@@ -172,8 +279,9 @@ int main(int argc, char** argv) {
     return -1;
   }
 
-  while (1) {
-    Token t = next_token(&src, &line, &cursor, &bol, &lexeme_buf);
+  Token t;
+  do {
+    t = next_token(&src, &line, &cursor, &bol, &lexeme_buf);
     if (t.type == TOK_EOF) {
       printf("EOF\n");
       return 0;
@@ -188,7 +296,7 @@ int main(int argc, char** argv) {
       }
       free(t.literal);
     }
-  }
+  } while (t.type > 0);
 
   free(src);
 
