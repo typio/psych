@@ -1,2 +1,5 @@
+build/
+psych
 *.ll
+*.o
 *.out

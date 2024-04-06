@@ -1,36 +1,4 @@
-#include <ctype.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <unicode/ustring.h>
-
-#define FILE_OK 1
-#define FILE_DOESNT_EXIST -1
-#define FILE_TOO_LARGE -2
-#define FILE_READ_ERROR -3
-
-#define MAX_LEXEME_LENGTH 64
-
-// clang-format off
-typedef enum {
-  TOK_ID = 1, 
-  TOK_INT_DEC, TOK_INT_OCT, TOK_INT_HEX, TOK_INT_BIN, TOK_FLOAT, TOK_STRING, TOK_CHAR,
-  TOK_ASSIGN, TOK_ASSIGN_CONST, TOK_ARROW,
-  TOK_COLON, TOK_EQUALS, TOK_SEMICOLON, TOK_COMMA, TOK_DOT,
-  TOK_L_PAREN, TOK_R_PAREN, TOK_L_BRACE, TOK_R_BRACE, TOK_L_BRACKET, TOK_R_BRACKET, TOK_DOUBLE_QUOTE, TOK_SINGLE_QUOTE,
-  TOK_L_PIPE, TOK_R_PIPE, TOK_RANGE_INCL, TOK_RANGE_EXCL,
-  TOK_PLUS, TOK_MINUS, TOK_STAR, TOK_SLASH, TOK_PERCENT, TOK_AT, TOK_AMPERSAND, TOK_BAR,
-  TOK_LT, TOK_LTE, TOK_GT, TOK_GTE, TOK_COMPARE,
-  TOK_TYPE,
-  TOK_EOF
-} TokenType ;
-// clang-format on
-
-typedef struct {
-  size_t hash;
-  TokenType type;
-  char* literal;
-} Token;
+#include "lexer.h"
 
 char* read_file(const char* file_name, size_t* err, size_t* file_size) {
   char* buffer;
@@ -92,6 +60,9 @@ int advance_lexer(char** src) {
 
 Token next_token(char** src, size_t* cursor, size_t* bol, size_t* line,
                  char (*lexeme_buf)[MAX_LEXEME_LENGTH]) {
+  (void)cursor;
+  (void)bol;
+
   Token token = {.type = 0};
   int lexeme_length = 0;
 
@@ -253,52 +224,4 @@ Token next_token(char** src, size_t* cursor, size_t* bol, size_t* line,
   }
 
   return token;
-}
-
-int main(int argc, char** argv) {
-  char lexeme_buf[MAX_LEXEME_LENGTH];
-
-  char* src;
-  size_t line = 0;
-  size_t cursor = 0;
-  size_t bol = 0;
-
-  if (argc <= 1) {
-    printf("No argument provided, please provide a filename");
-    return -1;
-  } else if (argc == 2) {
-    size_t read_file_err;
-    size_t file_size;
-    src = read_file(argv[1], &read_file_err, &file_size);
-    if (read_file_err != 1) {
-      printf("Error reading file");
-      return -1;
-    }
-  } else {
-    printf("Too many arguments provided, please only provide a filename");
-    return -1;
-  }
-
-  Token t;
-  do {
-    t = next_token(&src, &line, &cursor, &bol, &lexeme_buf);
-    if (t.type == TOK_EOF) {
-      printf("EOF\n");
-      return 0;
-    } else if (t.type <= 0) {
-      printf("Error parsing.\n");
-      return -1;
-    } else {
-      if (t.literal) {
-        printf("(%d %s)", t.type, t.literal);
-      } else {
-        printf("(%d)", t.type);
-      }
-      free(t.literal);
-    }
-  } while (t.type > 0);
-
-  free(src);
-
-  return 0;
 }
